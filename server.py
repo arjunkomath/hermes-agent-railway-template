@@ -237,7 +237,7 @@ class WebManager:
             env["HERMES_HOME"] = HERMES_HOME
 
             self.process = await asyncio.create_subprocess_exec(
-                "hermes", "web",
+                "hermes", "dashboard",
                 "--port", str(WEB_PORT),
                 "--no-open",
                 stdout=asyncio.subprocess.PIPE,
