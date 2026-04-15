@@ -334,7 +334,19 @@ async def _proxy_request(request: Request) -> Response:
             follow_redirects=False,
         )
     except httpx.ConnectError:
-        return PlainTextResponse("Hermes web UI is starting, please wait…", status_code=503)
+        return Response(
+            content=(
+                "<!doctype html><html><head>"
+                "<meta http-equiv='refresh' content='3'>"
+                "<title>Starting…</title>"
+                "<style>body{font-family:sans-serif;display:flex;align-items:center;"
+                "justify-content:center;height:100vh;margin:0;background:#0f172a;color:#94a3b8}"
+                "p{font-size:1.2rem}</style></head>"
+                "<body><p>Hermes dashboard is starting, please wait…</p></body></html>"
+            ),
+            status_code=503,
+            media_type="text/html",
+        )
     except Exception as e:
         return PlainTextResponse(f"Proxy error: {e}", status_code=502)
 
@@ -586,7 +598,6 @@ async def lifespan(app):
     _proxy_client = httpx.AsyncClient(timeout=30.0)
 
     await web_manager.start()
-    await web_manager.wait_ready(timeout=30.0)
     await auto_start_gateway()
 
     yield
