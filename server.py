@@ -240,7 +240,6 @@ class WebManager:
                 "hermes", "web",
                 "--port", str(WEB_PORT),
                 "--no-open",
-                "--allow-public",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 env=env,
@@ -265,8 +264,33 @@ class WebManager:
                 line = await self.process.stdout.readline()
                 if not line:
                     break
+                print(f"[hermes web] {line.decode('utf-8', errors='replace').rstrip()}", flush=True)
         except asyncio.CancelledError:
             return
+        if self.process and self.process.returncode is not None:
+            print(f"[hermes web] exited with code {self.process.returncode}", flush=True)
+
+    async def wait_ready(self, timeout: float = 30.0) -> bool:
+        """Poll WEB_PORT until hermes web is accepting TCP connections."""
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + timeout
+        print(f"[hermes web] waiting for port {WEB_PORT}…", flush=True)
+        while loop.time() < deadline:
+            if self.process and self.process.returncode is not None:
+                print("[hermes web] process exited before becoming ready", flush=True)
+                return False
+            try:
+                _, writer = await asyncio.wait_for(
+                    asyncio.open_connection("127.0.0.1", WEB_PORT), timeout=1.0
+                )
+                writer.close()
+                await writer.wait_closed()
+                print(f"[hermes web] ready on port {WEB_PORT}", flush=True)
+                return True
+            except (OSError, asyncio.TimeoutError):
+                await asyncio.sleep(1)
+        print(f"[hermes web] timed out waiting for port {WEB_PORT}", flush=True)
+        return False
 
 
 gateway = GatewayManager()
@@ -562,6 +586,7 @@ async def lifespan(app):
     _proxy_client = httpx.AsyncClient(timeout=30.0)
 
     await web_manager.start()
+    await web_manager.wait_ready(timeout=30.0)
     await auto_start_gateway()
 
     yield
