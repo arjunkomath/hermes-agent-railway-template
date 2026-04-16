@@ -236,10 +236,15 @@ class WebManager:
             env = os.environ.copy()
             env["HERMES_HOME"] = HERMES_HOME
 
+            # Call start_server() directly to bypass the `hermes dashboard`
+            # CLI wrapper which runs _build_web_ui() and requires Node.js.
+            # Node is only available in the Docker build stage, not at runtime.
             self.process = await asyncio.create_subprocess_exec(
-                "hermes", "web",
-                "--port", str(WEB_PORT),
-                "--no-open",
+                "python", "-c",
+                (
+                    "from hermes_cli.web_server import start_server; "
+                    f"start_server(port={WEB_PORT}, open_browser=False)"
+                ),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 env=env,
@@ -334,7 +339,19 @@ async def _proxy_request(request: Request) -> Response:
             follow_redirects=False,
         )
     except httpx.ConnectError:
-        return PlainTextResponse("Hermes web UI is starting, please wait…", status_code=503)
+        return Response(
+            content=(
+                "<!doctype html><html><head>"
+                "<meta http-equiv='refresh' content='3'>"
+                "<title>Starting…</title>"
+                "<style>body{font-family:sans-serif;display:flex;align-items:center;"
+                "justify-content:center;height:100vh;margin:0;background:#0f172a;color:#94a3b8}"
+                "p{font-size:1.2rem}</style></head>"
+                "<body><p>Hermes dashboard is starting, please wait…</p></body></html>"
+            ),
+            status_code=503,
+            media_type="text/html",
+        )
     except Exception as e:
         return PlainTextResponse(f"Proxy error: {e}", status_code=502)
 
@@ -586,7 +603,6 @@ async def lifespan(app):
     _proxy_client = httpx.AsyncClient(timeout=30.0)
 
     await web_manager.start()
-    await web_manager.wait_ready(timeout=30.0)
     await auto_start_gateway()
 
     yield
