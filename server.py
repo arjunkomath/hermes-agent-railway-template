@@ -1,5 +1,7 @@
 import asyncio
 import base64
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -10,23 +12,13 @@ from collections import deque
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import httpx
+from itsdangerous import BadSignature, SignatureExpired, TimestampSigner
 from starlette.applications import Starlette
-from starlette.authentication import (
-    AuthCredentials,
-    AuthenticationBackend,
-    AuthenticationError,
-    SimpleUser,
-)
 from starlette.middleware import Middleware
-from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, PlainTextResponse
+from starlette.responses import JSONResponse, PlainTextResponse, Response
 from starlette.routing import Route
-from starlette.templating import Jinja2Templates
-
-ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
-
-templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
@@ -40,59 +32,21 @@ ENV_FILE_PATH = Path(HERMES_HOME) / ".env"
 PAIRING_DIR = Path(HERMES_HOME) / "pairing"
 CODE_TTL_SECONDS = 3600
 
-# Registry of known Hermes env vars exposed in the UI.
-# Each entry: (key, label, category, is_password)
-ENV_VAR_DEFS = [
-    # Model
-    ("LLM_MODEL", "Model", "model", False),
-    # Providers
-    ("OPENROUTER_API_KEY", "OpenRouter API Key", "provider", True),
-    ("DEEPSEEK_API_KEY", "DeepSeek API Key", "provider", True),
-    ("DASHSCOPE_API_KEY", "DashScope API Key", "provider", True),
-    ("GLM_API_KEY", "GLM / Z.AI API Key", "provider", True),
-    ("KIMI_API_KEY", "Kimi API Key", "provider", True),
-    ("MINIMAX_API_KEY", "MiniMax API Key", "provider", True),
-    ("HF_TOKEN", "Hugging Face Token", "provider", True),
-    # Tools
-    ("PARALLEL_API_KEY", "Parallel API Key", "tool", True),
-    ("FIRECRAWL_API_KEY", "Firecrawl API Key", "tool", True),
-    ("TAVILY_API_KEY", "Tavily API Key", "tool", True),
-    ("FAL_KEY", "FAL API Key", "tool", True),
-    ("BROWSERBASE_API_KEY", "Browserbase API Key", "tool", True),
-    ("BROWSERBASE_PROJECT_ID", "Browserbase Project ID", "tool", False),
-    ("GITHUB_TOKEN", "GitHub Token", "tool", True),
-    ("VOICE_TOOLS_OPENAI_KEY", "OpenAI Voice Key", "tool", True),
-    ("HONCHO_API_KEY", "Honcho API Key", "tool", True),
-    # Messaging — Telegram
-    ("TELEGRAM_BOT_TOKEN", "Telegram Bot Token", "messaging", True),
-    ("TELEGRAM_ALLOWED_USERS", "Telegram Allowed Users", "messaging", False),
-    # Messaging — Discord
-    ("DISCORD_BOT_TOKEN", "Discord Bot Token", "messaging", True),
-    ("DISCORD_ALLOWED_USERS", "Discord Allowed Users", "messaging", False),
-    # Messaging — Slack
-    ("SLACK_BOT_TOKEN", "Slack Bot Token", "messaging", True),
-    ("SLACK_APP_TOKEN", "Slack App Token", "messaging", True),
-    # Messaging — WhatsApp
-    ("WHATSAPP_ENABLED", "WhatsApp Enabled", "messaging", False),
-    # Messaging — Email
-    ("EMAIL_ADDRESS", "Email Address", "messaging", False),
-    ("EMAIL_PASSWORD", "Email Password", "messaging", True),
-    ("EMAIL_IMAP_HOST", "Email IMAP Host", "messaging", False),
-    ("EMAIL_SMTP_HOST", "Email SMTP Host", "messaging", False),
-    # Messaging — Mattermost
-    ("MATTERMOST_URL", "Mattermost URL", "messaging", False),
-    ("MATTERMOST_TOKEN", "Mattermost Token", "messaging", True),
-    # Messaging — Matrix
-    ("MATRIX_HOMESERVER", "Matrix Homeserver", "messaging", False),
-    ("MATRIX_ACCESS_TOKEN", "Matrix Access Token", "messaging", True),
-    ("MATRIX_USER_ID", "Matrix User ID", "messaging", False),
-    # Messaging — General
-    ("GATEWAY_ALLOW_ALL_USERS", "Allow All Users", "messaging", False),
+WEB_PORT = 9119
+WEB_BASE_URL = f"http://127.0.0.1:{WEB_PORT}"
+
+# Session cookie signing — stable across restarts so long as ADMIN_PASSWORD is set
+_COOKIE_NAME = "hermes_session"
+_SIGNER = TimestampSigner(
+    hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest(),
+    salt="hermes-railway",
+)
+_SESSION_MAX_AGE = 86400 * 7  # 7 days
+
+PROVIDER_KEYS = [
+    "OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY",
+    "GLM_API_KEY", "KIMI_API_KEY", "MINIMAX_API_KEY", "HF_TOKEN",
 ]
-
-PASSWORD_KEYS = {key for key, _, _, is_pw in ENV_VAR_DEFS if is_pw}
-
-PROVIDER_KEYS = [key for key, _, cat, _ in ENV_VAR_DEFS if cat == "provider" and key != "LLM_MODEL"]
 CHANNEL_KEYS = {
     "Telegram": "TELEGRAM_BOT_TOKEN",
     "Discord": "DISCORD_BOT_TOKEN",
@@ -103,6 +57,12 @@ CHANNEL_KEYS = {
     "Matrix": "MATRIX_ACCESS_TOKEN",
 }
 
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+# ---------------------------------------------------------------------------
+# .env helpers (still needed for gateway auto-start and pairing)
+# ---------------------------------------------------------------------------
 
 def read_env_file(path: Path) -> dict[str, str]:
     if not path.exists():
@@ -123,91 +83,60 @@ def read_env_file(path: Path) -> dict[str, str]:
     return result
 
 
-def write_env_file(path: Path, env_vars: dict[str, str]):
-    path.parent.mkdir(parents=True, exist_ok=True)
+# ---------------------------------------------------------------------------
+# Auth helpers
+# ---------------------------------------------------------------------------
 
-    categories = {"model": "Model", "provider": "Providers", "tool": "Tools", "messaging": "Messaging"}
-    grouped: dict[str, list[str]] = {cat: [] for cat in categories}
-    known_keys = {key for key, _, _, _ in ENV_VAR_DEFS}
-    key_to_cat = {key: cat for key, _, cat, _ in ENV_VAR_DEFS}
-
-    for key, value in env_vars.items():
-        if not value:
-            continue
-        cat = key_to_cat.get(key, "other")
-        line = f"{key}={value}"
-        if cat in grouped:
-            grouped[cat].append(line)
-        else:
-            grouped.setdefault("other", []).append(line)
-
-    lines = []
-    for cat, heading in categories.items():
-        entries = grouped.get(cat, [])
-        if entries:
-            lines.append(f"# {heading}")
-            lines.extend(sorted(entries))
-            lines.append("")
-
-    other = grouped.get("other", [])
-    if other:
-        lines.append("# Other")
-        lines.extend(sorted(other))
-        lines.append("")
-
-    path.write_text("\n".join(lines) + "\n" if lines else "")
+def _check_basic(username: str, password: str) -> bool:
+    return (
+        hmac.compare_digest(username, ADMIN_USERNAME)
+        and hmac.compare_digest(password, ADMIN_PASSWORD)
+    )
 
 
-def mask_secrets(env_vars: dict[str, str]) -> dict[str, str]:
-    result = {}
-    for key, value in env_vars.items():
-        if key in PASSWORD_KEYS and value:
-            result[key] = value[:8] + "***" if len(value) > 8 else "***"
-        else:
-            result[key] = value
-    return result
+def _make_session_cookie() -> str:
+    return _SIGNER.sign(b"ok").decode()
 
 
-def merge_secrets(new_vars: dict[str, str], existing_vars: dict[str, str]) -> dict[str, str]:
-    result = {}
-    for key, value in new_vars.items():
-        if key in PASSWORD_KEYS and value.endswith("***"):
-            result[key] = existing_vars.get(key, "")
-        else:
-            result[key] = value
-    return result
+def _validate_session_cookie(value: str) -> bool:
+    try:
+        _SIGNER.unsign(value, max_age=_SESSION_MAX_AGE)
+        return True
+    except (BadSignature, SignatureExpired):
+        return False
 
 
-class BasicAuthBackend(AuthenticationBackend):
-    async def authenticate(self, conn):
-        if "Authorization" not in conn.headers:
-            return None
+def _is_authenticated(request: Request) -> bool:
+    # 1. Valid session cookie
+    cookie = request.cookies.get(_COOKIE_NAME)
+    if cookie and _validate_session_cookie(cookie):
+        return True
 
-        auth = conn.headers["Authorization"]
+    # 2. HTTP Basic auth
+    auth = request.headers.get("Authorization", "")
+    if auth.lower().startswith("basic "):
         try:
-            scheme, credentials = auth.split()
-            if scheme.lower() != "basic":
-                return None
-            decoded = base64.b64decode(credentials).decode("ascii")
-        except (ValueError, UnicodeDecodeError):
-            raise AuthenticationError("Invalid credentials")
+            decoded = base64.b64decode(auth[6:]).decode("ascii")
+            username, _, password = decoded.partition(":")
+            if _check_basic(username, password):
+                return True
+        except Exception:
+            pass
 
-        username, _, password = decoded.partition(":")
-        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
-            return AuthCredentials(["authenticated"]), SimpleUser(username)
-
-        raise AuthenticationError("Invalid credentials")
+    return False
 
 
-def require_auth(request: Request):
-    if not request.user.is_authenticated:
-        return PlainTextResponse(
-            "Unauthorized",
-            status_code=401,
-            headers={"WWW-Authenticate": 'Basic realm="hermes"'},
-        )
-    return None
+def _auth_response() -> Response:
+    return PlainTextResponse(
+        "Unauthorized",
+        status_code=401,
+        headers={"WWW-Authenticate": 'Basic realm="hermes"'},
+    )
 
+
+# ---------------------------------------------------------------------------
+# Gateway manager
+# ---------------------------------------------------------------------------
 
 class GatewayManager:
     def __init__(self):
@@ -291,120 +220,209 @@ class GatewayManager:
         }
 
 
+# ---------------------------------------------------------------------------
+# Web UI manager (hermes web)
+# ---------------------------------------------------------------------------
+
+class WebManager:
+    def __init__(self):
+        self.process: asyncio.subprocess.Process | None = None
+        self._read_task: asyncio.Task | None = None
+
+    async def start(self):
+        if self.process and self.process.returncode is None:
+            return
+        try:
+            env = os.environ.copy()
+            env["HERMES_HOME"] = HERMES_HOME
+
+            # Call start_server() directly to bypass the `hermes dashboard`
+            # CLI wrapper which runs _build_web_ui() and requires Node.js.
+            # Node is only available in the Docker build stage, not at runtime.
+            self.process = await asyncio.create_subprocess_exec(
+                "python", "-c",
+                (
+                    "from hermes_cli.web_server import start_server; "
+                    f"start_server(port={WEB_PORT}, open_browser=False)"
+                ),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                env=env,
+            )
+            self._read_task = asyncio.create_task(self._drain_output())
+        except Exception as e:
+            print(f"Failed to start hermes web: {e}")
+
+    async def stop(self):
+        if not self.process or self.process.returncode is not None:
+            return
+        self.process.terminate()
+        try:
+            await asyncio.wait_for(self.process.wait(), timeout=10)
+        except asyncio.TimeoutError:
+            self.process.kill()
+            await self.process.wait()
+
+    async def _drain_output(self):
+        try:
+            while self.process and self.process.stdout:
+                line = await self.process.stdout.readline()
+                if not line:
+                    break
+                print(f"[hermes web] {line.decode('utf-8', errors='replace').rstrip()}", flush=True)
+        except asyncio.CancelledError:
+            return
+        if self.process and self.process.returncode is not None:
+            print(f"[hermes web] exited with code {self.process.returncode}", flush=True)
+
+    async def wait_ready(self, timeout: float = 30.0) -> bool:
+        """Poll WEB_PORT until hermes web is accepting TCP connections."""
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + timeout
+        print(f"[hermes web] waiting for port {WEB_PORT}…", flush=True)
+        while loop.time() < deadline:
+            if self.process and self.process.returncode is not None:
+                print("[hermes web] process exited before becoming ready", flush=True)
+                return False
+            try:
+                _, writer = await asyncio.wait_for(
+                    asyncio.open_connection("127.0.0.1", WEB_PORT), timeout=1.0
+                )
+                writer.close()
+                await writer.wait_closed()
+                print(f"[hermes web] ready on port {WEB_PORT}", flush=True)
+                return True
+            except (OSError, asyncio.TimeoutError):
+                await asyncio.sleep(1)
+        print(f"[hermes web] timed out waiting for port {WEB_PORT}", flush=True)
+        return False
+
+
 gateway = GatewayManager()
-config_lock = asyncio.Lock()
+web_manager = WebManager()
+_proxy_client: httpx.AsyncClient | None = None
 
 
-async def homepage(request: Request):
-    auth_err = require_auth(request)
-    if auth_err:
-        return auth_err
-    return templates.TemplateResponse(request, "index.html")
+# ---------------------------------------------------------------------------
+# Reverse proxy helpers
+# ---------------------------------------------------------------------------
 
+# Headers that must not be forwarded hop-by-hop
+_HOP_BY_HOP = frozenset([
+    "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
+    "te", "trailers", "transfer-encoding", "upgrade",
+])
+
+
+async def _proxy_request(request: Request) -> Response:
+    """Forward request to the upstream hermes web FastAPI server."""
+    assert _proxy_client is not None
+
+    url = f"{WEB_BASE_URL}{request.url.path}"
+    if request.url.query:
+        url = f"{url}?{request.url.query}"
+
+    # Forward headers, stripping hop-by-hop and host
+    headers = {
+        k: v for k, v in request.headers.items()
+        if k.lower() not in _HOP_BY_HOP and k.lower() != "host"
+    }
+
+    body = await request.body()
+
+    try:
+        upstream = await _proxy_client.request(
+            method=request.method,
+            url=url,
+            headers=headers,
+            content=body,
+            follow_redirects=False,
+        )
+    except httpx.ConnectError:
+        return Response(
+            content=(
+                "<!doctype html><html><head>"
+                "<meta http-equiv='refresh' content='3'>"
+                "<title>Starting…</title>"
+                "<style>body{font-family:sans-serif;display:flex;align-items:center;"
+                "justify-content:center;height:100vh;margin:0;background:#0f172a;color:#94a3b8}"
+                "p{font-size:1.2rem}</style></head>"
+                "<body><p>Hermes dashboard is starting, please wait…</p></body></html>"
+            ),
+            status_code=503,
+            media_type="text/html",
+        )
+    except Exception as e:
+        return PlainTextResponse(f"Proxy error: {e}", status_code=502)
+
+    # Strip hop-by-hop from upstream response
+    resp_headers = {
+        k: v for k, v in upstream.headers.items()
+        if k.lower() not in _HOP_BY_HOP
+    }
+
+    return Response(
+        content=upstream.content,
+        status_code=upstream.status_code,
+        headers=resp_headers,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Route handlers
+# ---------------------------------------------------------------------------
 
 async def health(request: Request):
     return JSONResponse({"status": "ok", "gateway": gateway.state})
 
 
-async def api_config_get(request: Request):
-    auth_err = require_auth(request)
-    if auth_err:
-        return auth_err
-    async with config_lock:
-        env_vars = read_env_file(ENV_FILE_PATH)
-    defs = [
-        {"key": key, "label": label, "category": cat, "password": is_pw}
-        for key, label, cat, is_pw in ENV_VAR_DEFS
-    ]
-    return JSONResponse({"vars": mask_secrets(env_vars), "defs": defs})
+async def proxy_handler(request: Request):
+    """Auth gate + reverse proxy for everything going to hermes web."""
+    if not _is_authenticated(request):
+        return _auth_response()
+
+    response = await _proxy_request(request)
+
+    # Set session cookie on successful page loads so the browser doesn't need
+    # to re-send Basic auth credentials on every subsequent request
+    if response.status_code < 400:
+        auth = request.headers.get("Authorization", "")
+        if auth.lower().startswith("basic ") and not request.cookies.get(_COOKIE_NAME):
+            response.set_cookie(
+                _COOKIE_NAME,
+                _make_session_cookie(),
+                max_age=_SESSION_MAX_AGE,
+                httponly=True,
+                samesite="lax",
+            )
+
+    return response
 
 
-async def api_config_put(request: Request):
-    auth_err = require_auth(request)
-    if auth_err:
-        return auth_err
-
-    try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
-
-    try:
-        restart = body.pop("_restartGateway", False)
-        new_vars = body.get("vars", {})
-
-        async with config_lock:
-            existing = read_env_file(ENV_FILE_PATH)
-            merged = merge_secrets(new_vars, existing)
-            # Preserve any existing vars not in the UI
-            for key, value in existing.items():
-                if key not in merged:
-                    merged[key] = value
-            write_env_file(ENV_FILE_PATH, merged)
-
-        if restart:
-            asyncio.create_task(gateway.restart())
-
-        return JSONResponse({"ok": True, "restarting": restart})
-    except Exception as e:
-        print(f"Config save error: {type(e).__name__}: {e}")
-        return JSONResponse({"error": str(e)}, status_code=500)
-
-
-async def api_status(request: Request):
-    auth_err = require_auth(request)
-    if auth_err:
-        return auth_err
-
-    env_vars = read_env_file(ENV_FILE_PATH)
-
-    providers = {}
-    for key in PROVIDER_KEYS:
-        label = key.replace("_API_KEY", "").replace("_TOKEN", "").replace("HF_", "HuggingFace ").replace("_", " ").title()
-        providers[label] = {"configured": bool(env_vars.get(key))}
-
-    channels = {}
-    for name, key in CHANNEL_KEYS.items():
-        val = env_vars.get(key, "")
-        channels[name] = {"configured": bool(val) and val.lower() not in ("false", "0", "no")}
-
-    return JSONResponse({
-        "gateway": gateway.get_status(),
-        "providers": providers,
-        "channels": channels,
-    })
-
-
-async def api_logs(request: Request):
-    auth_err = require_auth(request)
-    if auth_err:
-        return auth_err
-    return JSONResponse({"lines": list(gateway.logs)})
-
+# Gateway control (not in upstream hermes web)
 
 async def api_gateway_start(request: Request):
-    auth_err = require_auth(request)
-    if auth_err:
-        return auth_err
+    if not _is_authenticated(request):
+        return _auth_response()
     asyncio.create_task(gateway.start())
     return JSONResponse({"ok": True})
 
 
 async def api_gateway_stop(request: Request):
-    auth_err = require_auth(request)
-    if auth_err:
-        return auth_err
+    if not _is_authenticated(request):
+        return _auth_response()
     asyncio.create_task(gateway.stop())
     return JSONResponse({"ok": True})
 
 
 async def api_gateway_restart(request: Request):
-    auth_err = require_auth(request)
-    if auth_err:
-        return auth_err
+    if not _is_authenticated(request):
+        return _auth_response()
     asyncio.create_task(gateway.restart())
     return JSONResponse({"ok": True})
 
+
+# Pairing (not in upstream hermes web)
 
 def _load_pairing_json(path: Path) -> dict:
     if path.exists():
@@ -434,9 +452,8 @@ def _pairing_platforms(suffix: str) -> list[str]:
 
 
 async def api_pairing_pending(request: Request):
-    auth_err = require_auth(request)
-    if auth_err:
-        return auth_err
+    if not _is_authenticated(request):
+        return _auth_response()
     now = time.time()
     results = []
     for platform in _pairing_platforms("pending"):
@@ -456,9 +473,8 @@ async def api_pairing_pending(request: Request):
 
 
 async def api_pairing_approve(request: Request):
-    auth_err = require_auth(request)
-    if auth_err:
-        return auth_err
+    if not _is_authenticated(request):
+        return _auth_response()
     try:
         body = await request.json()
     except Exception:
@@ -489,9 +505,8 @@ async def api_pairing_approve(request: Request):
 
 
 async def api_pairing_deny(request: Request):
-    auth_err = require_auth(request)
-    if auth_err:
-        return auth_err
+    if not _is_authenticated(request):
+        return _auth_response()
     try:
         body = await request.json()
     except Exception:
@@ -512,9 +527,8 @@ async def api_pairing_deny(request: Request):
 
 
 async def api_pairing_approved(request: Request):
-    auth_err = require_auth(request)
-    if auth_err:
-        return auth_err
+    if not _is_authenticated(request):
+        return _auth_response()
     results = []
     for platform in _pairing_platforms("approved"):
         approved = _load_pairing_json(PAIRING_DIR / f"{platform}-approved.json")
@@ -529,9 +543,8 @@ async def api_pairing_approved(request: Request):
 
 
 async def api_pairing_revoke(request: Request):
-    auth_err = require_auth(request)
-    if auth_err:
-        return auth_err
+    if not _is_authenticated(request):
+        return _auth_response()
     try:
         body = await request.json()
     except Exception:
@@ -551,6 +564,10 @@ async def api_pairing_revoke(request: Request):
     return JSONResponse({"ok": True})
 
 
+# ---------------------------------------------------------------------------
+# Auto-start
+# ---------------------------------------------------------------------------
+
 async def auto_start_gateway():
     env_vars = read_env_file(ENV_FILE_PATH)
     has_provider = any(env_vars.get(key) for key in PROVIDER_KEYS)
@@ -558,33 +575,46 @@ async def auto_start_gateway():
         asyncio.create_task(gateway.start())
 
 
+# ---------------------------------------------------------------------------
+# Routing
+# ---------------------------------------------------------------------------
+
 routes = [
-    Route("/", homepage),
     Route("/health", health),
-    Route("/api/config", api_config_get, methods=["GET"]),
-    Route("/api/config", api_config_put, methods=["PUT"]),
-    Route("/api/status", api_status),
-    Route("/api/logs", api_logs),
+    # Gateway control
     Route("/api/gateway/start", api_gateway_start, methods=["POST"]),
     Route("/api/gateway/stop", api_gateway_stop, methods=["POST"]),
     Route("/api/gateway/restart", api_gateway_restart, methods=["POST"]),
+    # Pairing
     Route("/api/pairing/pending", api_pairing_pending),
     Route("/api/pairing/approve", api_pairing_approve, methods=["POST"]),
     Route("/api/pairing/deny", api_pairing_deny, methods=["POST"]),
     Route("/api/pairing/approved", api_pairing_approved),
     Route("/api/pairing/revoke", api_pairing_revoke, methods=["POST"]),
+    # Everything else → hermes web (React SPA + upstream API)
+    Route("/{path:path}", proxy_handler, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]),
+    Route("/", proxy_handler),
 ]
+
 
 @asynccontextmanager
 async def lifespan(app):
+    global _proxy_client
+    _proxy_client = httpx.AsyncClient(timeout=30.0)
+
+    await web_manager.start()
     await auto_start_gateway()
+
     yield
+
     await gateway.stop()
+    await web_manager.stop()
+    await _proxy_client.aclose()
 
 
 app = Starlette(
     routes=routes,
-    middleware=[Middleware(AuthenticationMiddleware, backend=BasicAuthBackend())],
+    middleware=[],
     lifespan=lifespan,
 )
 
@@ -602,6 +632,7 @@ if __name__ == "__main__":
 
     def handle_signal():
         loop.create_task(gateway.stop())
+        loop.create_task(web_manager.stop())
         server.should_exit = True
 
     for sig in (signal.SIGTERM, signal.SIGINT):
