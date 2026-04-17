@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paperspace — Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ─── Tokens ──────────────────────────────────────────────────────────── */
+:root {
+  --bg:          oklch(0.985 0.004 80);
+  --fg:          oklch(0.15  0.010 250);
+  --card:        oklch(0.997 0.002 80);
+  --primary:     oklch(0.38  0.090 240);
+  --primary-fg:  oklch(0.98  0     0);
+  --secondary:   oklch(0.958 0.005 80);
+  --secondary-fg:oklch(0.22  0.010 250);
+  --muted:       oklch(0.953 0.005 80);
+  --muted-fg:    oklch(0.52  0.008 250);
+  --accent:      oklch(0.944 0.006 80);
+  --accent-fg:   oklch(0.15  0.010 250);
+  --destructive: oklch(0.53  0.200 25);
+  --border:      oklch(0.870 0.006 80);
+  --input:       oklch(0.870 0.006 80);
+  --ring:        oklch(0.38  0.090 240);
+  --sidebar:     oklch(0.962 0.006 80);
+  --radius:      4px;
+
+  --font-sans:  'Inter', system-ui, sans-serif;
+  --font-mono:  'JetBrains Mono', monospace;
+
+  --status-draft:      #9E9E9E;
+  --status-in-review:  #F59E0B;
+  --status-approved:   #6B8F71;
+  --status-rejected:   #C0614A;
+  --status-quoted:     #A78BFA;
+  --status-ordered:    #4B6DA8;
+  --status-fabricated: #6B7DB3;
+  --status-shipped:    #2C9E9E;
+  --status-delivered:  #1A7A7A;
+  --status-installed:  #2D6A4F;
+
+  --chart-1: oklch(0.809 0.105 251.813);
+  --chart-2: oklch(0.623 0.214 259.815);
+  --chart-3: oklch(0.546 0.245 262.881);
+  --chart-4: oklch(0.488 0.243 264.376);
+  --chart-5: oklch(0.424 0.199 265.638);
+}
+
+/* ─── Reset & Base ────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-family: var(--font-sans); font-size: 14px; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body { background: var(--bg); color: var(--fg); line-height: 1.5; }
+
+/* ─── Layout ──────────────────────────────────────────────────────────── */
+.sidebar {
+  position: fixed; top: 0; left: 0; bottom: 0; width: 200px;
+  background: var(--sidebar); border-right: 1px solid var(--border);
+  padding: 24px 16px; overflow-y: auto; z-index: 10;
+}
+.sidebar-title {
+  font-size: 13px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--fg); margin-bottom: 24px;
+}
+.sidebar-label {
+  font-size: 9px; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted-fg); margin: 16px 0 6px;
+}
+.sidebar a {
+  display: block; font-size: 12px; color: var(--muted-fg);
+  text-decoration: none; padding: 4px 8px; border-radius: 2px;
+  transition: all 150ms ease;
+}
+.sidebar a:hover { color: var(--fg); background: var(--accent); }
+.sidebar a.active { color: var(--primary); font-weight: 500; }
+
+.main {
+  margin-left: 200px; max-width: 960px; padding: 48px 48px 120px;
+}
+
+/* ─── Section ─────────────────────────────────────────────────────────── */
+section { margin-bottom: 64px; }
+section + section { padding-top: 48px; border-top: 1px solid var(--border); }
+.section-title {
+  font-size: 20px; font-weight: 600; margin-bottom: 4px;
+}
+.section-desc {
+  font-size: 13px; color: var(--muted-fg); margin-bottom: 24px;
+}
+.subsection {
+  margin-bottom: 32px;
+}
+.subsection-title {
+  font-size: 9px; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted-fg); margin-bottom: 12px;
+}
+
+/* ─── Color Swatches ──────────────────────────────────────────────────── */
+.swatch-grid {
+  display: flex; flex-wrap: wrap; gap: 10px;
+}
+.swatch {
+  width: 120px; border: 1px solid var(--border); border-radius: 2px;
+  overflow: hidden; background: white;
+}
+.swatch-color { height: 52px; }
+.swatch-info { padding: 8px; }
+.swatch-name { font-size: 12px; font-weight: 500; margin-bottom: 2px; }
+.swatch-value { font-size: 10px; font-family: var(--font-mono); color: var(--muted-fg); word-break: break-all; }
+
+.status-row {
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.status-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; padding: 4px 10px; border: 1px solid var(--border);
+  border-radius: 2px; background: white;
+}
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+
+/* ─── Typography Specimen ─────────────────────────────────────────────── */
+.type-specimen {
+  display: flex; flex-direction: column; gap: 12px;
+}
+.type-row {
+  display: flex; align-items: baseline; gap: 16px;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.type-label {
+  width: 140px; flex-shrink: 0; font-size: 11px;
+  font-family: var(--font-mono); color: var(--muted-fg);
+}
+.type-sample { flex: 1; }
+
+.font-card {
+  border: 1px solid var(--border); border-radius: 2px;
+  padding: 20px; background: white; margin-bottom: 12px;
+}
+.font-card-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted-fg); margin-bottom: 12px; }
+.font-card-sample { font-size: 28px; margin-bottom: 8px; }
+.font-card-weights { display: flex; gap: 24px; font-size: 13px; color: var(--muted-fg); }
+
+/* ─── Spacing & Radius ────────────────────────────────────────────────── */
+.spacing-row {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+}
+.spacing-bar {
+  height: 20px; background: var(--primary); border-radius: 1px; opacity: 0.7;
+}
+.spacing-label {
+  font-size: 11px; font-family: var(--font-mono); color: var(--muted-fg);
+  width: 80px; flex-shrink: 0;
+}
+
+.radius-row {
+  display: flex; flex-wrap: wrap; gap: 16px; align-items: end;
+}
+.radius-box {
+  width: 64px; height: 64px; border: 2px solid var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-family: var(--font-mono); color: var(--muted-fg);
+}
+
+/* ─── Buttons ─────────────────────────────────────────────────────────── */
+.btn-row {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  margin-bottom: 16px;
+}
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-sans); font-weight: 500; white-space: nowrap;
+  border: 1px solid transparent; border-radius: 2px; cursor: pointer;
+  transition: all 150ms ease; outline: none;
+}
+.btn-default   { height: 32px; padding: 0 12px; font-size: 13px; letter-spacing: 0.01em; background: var(--primary); color: var(--primary-fg); }
+.btn-outline   { height: 32px; padding: 0 12px; font-size: 13px; background: var(--bg); color: var(--fg); border-color: var(--border); }
+.btn-secondary { height: 32px; padding: 0 12px; font-size: 13px; background: var(--secondary); color: var(--secondary-fg); }
+.btn-ghost     { height: 32px; padding: 0 12px; font-size: 13px; background: transparent; color: var(--fg); }
+.btn-text      { height: 32px; padding: 0 12px; font-size: 13px; background: transparent; color: var(--muted-fg); }
+.btn-destructive { height: 32px; padding: 0 12px; font-size: 13px; background: oklch(0.53 0.200 25 / 10%); color: var(--destructive); border-color: oklch(0.53 0.200 25 / 20%); }
+.btn-link      { height: 32px; padding: 0 12px; font-size: 13px; background: transparent; color: var(--primary); text-decoration: underline; text-underline-offset: 4px; border: none; }
+
+.btn-size-xs   { height: 24px; padding: 0 8px; font-size: 11px; letter-spacing: 0.02em; }
+.btn-size-sm   { height: 28px; padding: 0 10px; font-size: 12px; }
+.btn-size-lg   { height: 36px; padding: 0 14px; font-size: 13px; }
+.btn-icon      { width: 32px; height: 32px; padding: 0; }
+.btn-icon-xs   { width: 24px; height: 24px; padding: 0; }
+.btn-icon-sm   { width: 28px; height: 28px; padding: 0; }
+.btn-icon-lg   { width: 36px; height: 36px; padding: 0; }
+.btn-disabled  { opacity: 0.4; pointer-events: none; }
+
+.variant-label {
+  font-size: 10px; font-family: var(--font-mono); color: var(--muted-fg);
+  text-align: center; margin-top: 4px;
+}
+
+/* ─── Form Inputs ─────────────────────────────────────────────────────── */
+.input-row {
+  display: flex; flex-wrap: wrap; gap: 16px; align-items: start;
+  margin-bottom: 16px;
+}
+.input-group { display: flex; flex-direction: column; gap: 4px; }
+.input-group-label { font-size: 10px; font-family: var(--font-mono); color: var(--muted-fg); }
+
+.mock-input {
+  height: 32px; padding: 0 10px; font-size: 14px; font-family: var(--font-sans);
+  border: 1px solid var(--input); border-radius: 2px; background: transparent;
+  color: var(--fg); outline: none; width: 200px;
+}
+.mock-input::placeholder { color: oklch(0.52 0.008 250 / 60%); }
+.mock-input:focus { border-color: var(--ring); box-shadow: 0 0 0 2px oklch(0.38 0.090 240 / 25%); }
+.mock-input.disabled { opacity: 0.4; background: oklch(0.870 0.006 80 / 50%); cursor: not-allowed; }
+.mock-input.error { border-color: var(--destructive); box-shadow: 0 0 0 2px oklch(0.53 0.200 25 / 20%); }
+
+.mock-textarea {
+  min-height: 64px; padding: 8px 10px; font-size: 14px; font-family: var(--font-sans);
+  border: 1px solid var(--input); border-radius: 4px; background: transparent;
+  color: var(--fg); outline: none; width: 300px; resize: vertical;
+}
+
+.mock-select-trigger {
+  height: 32px; padding: 0 8px 0 10px; font-size: 14px; font-family: var(--font-sans);
+  border: 1px solid var(--input); border-radius: 2px; background: transparent;
+  color: var(--fg); display: inline-flex; align-items: center; gap: 6px;
+  cursor: pointer; width: 200px; justify-content: space-between;
+}
+.mock-select-trigger .chevron { font-size: 10px; color: var(--muted-fg); }
+
+.mock-checkbox {
+  width: 16px; height: 16px; border: 1px solid var(--input); border-radius: 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0;
+}
+.mock-checkbox.checked { background: var(--primary); border-color: var(--primary); color: var(--primary-fg); }
+
+.mock-label {
+  font-size: 11px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--muted-fg);
+}
+
+/* ─── Dropdowns & Popovers ────────────────────────────────────────────── */
+.mock-dropdown {
+  width: 200px; background: white; border-radius: 2px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  outline: 1px solid oklch(0.15 0.010 250 / 5%); padding: 4px; overflow: hidden;
+}
+.mock-dropdown.ring-10 { outline: 1px solid oklch(0.15 0.010 250 / 10%); }
+.mock-dropdown-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 8px; font-size: 14px; border-radius: 2px; cursor: default;
+}
+.mock-dropdown-item:hover, .mock-dropdown-item.hovered { background: var(--accent); }
+.mock-dropdown-item.destructive { color: var(--destructive); }
+.mock-dropdown-item.destructive:hover, .mock-dropdown-item.destructive.hovered { background: oklch(0.53 0.200 25 / 10%); }
+.mock-dropdown-sep {
+  height: 1px; background: oklch(0.870 0.006 80 / 50%); margin: 4px -4px;
+}
+.mock-dropdown-shortcut {
+  margin-left: auto; font-size: 11px; color: var(--muted-fg); letter-spacing: 0.04em;
+}
+
+.mock-popover {
+  width: 288px; background: white; border-radius: 2px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); outline: 1px solid oklch(0.15 0.010 250 / 10%);
+  padding: 16px;
+}
+.mock-popover-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+.mock-popover-desc { font-size: 13px; color: var(--muted-fg); }
+
+.mock-tooltip {
+  display: inline-block; background: var(--fg); color: var(--bg);
+  padding: 6px 12px; border-radius: 2px; font-size: 12px;
+  position: relative;
+}
+.mock-tooltip::after {
+  content: ''; position: absolute; width: 8px; height: 8px;
+  background: var(--fg); transform: rotate(45deg);
+}
+.mock-tooltip.top::after    { bottom: -4px; left: 50%; margin-left: -4px; }
+.mock-tooltip.bottom::after { top: -4px; left: 50%; margin-left: -4px; }
+.mock-tooltip.left::after   { right: -4px; top: 50%; margin-top: -4px; }
+.mock-tooltip.right::after  { left: -4px; top: 50%; margin-top: -4px; }
+
+/* ─── Dialog & Sheet ──────────────────────────────────────────────────── */
+.mock-overlay {
+  background: oklch(0 0 0 / 10%); border-radius: 6px;
+  padding: 40px; display: flex; align-items: center; justify-content: center;
+  min-height: 280px; position: relative;
+}
+.mock-dialog {
+  background: var(--card); border-radius: 6px; max-width: 384px; width: 100%;
+  padding: 24px; position: relative; border: 1px solid var(--border);
+}
+.mock-dialog-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.mock-dialog-desc { font-size: 13px; color: var(--muted-fg); margin-bottom: 20px; }
+.mock-dialog-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+.mock-dialog-close {
+  position: absolute; top: 12px; right: 12px; width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; color: var(--muted-fg);
+  cursor: pointer; border-radius: 2px; font-size: 16px;
+}
+
+.mock-sheet-container {
+  display: flex; background: oklch(0 0 0 / 10%); border-radius: 6px;
+  min-height: 280px; position: relative; overflow: hidden;
+}
+.mock-sheet-backdrop { flex: 1; }
+.mock-sheet {
+  width: 320px; background: var(--card); border-left: 1px solid var(--border);
+  padding: 16px; display: flex; flex-direction: column;
+}
+.mock-sheet-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.mock-sheet-desc { font-size: 13px; color: var(--muted-fg); margin-bottom: 16px; }
+.mock-sheet-body { flex: 1; }
+.mock-sheet-footer { margin-top: auto; padding-top: 16px; display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ─── Badges ──────────────────────────────────────────────────────────── */
+.mock-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 20px; padding: 0 8px; border-radius: 9999px; font-size: 12px;
+  font-weight: 500; border: 1px solid transparent; gap: 4px; white-space: nowrap;
+}
+.mock-badge.default    { background: var(--primary); color: var(--primary-fg); }
+.mock-badge.secondary  { background: var(--secondary); color: var(--secondary-fg); }
+.mock-badge.destructive { background: oklch(0.53 0.200 25 / 10%); color: var(--destructive); }
+.mock-badge.outline    { border-color: var(--border); color: var(--fg); }
+.mock-badge.ghost      { color: var(--muted-fg); }
+.mock-badge.link       { color: var(--primary); text-decoration: underline; text-underline-offset: 4px; }
+
+.status-badge-full {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 8px; border-radius: 2px; border: 1px solid;
+  font-size: 11px; font-weight: 500; letter-spacing: 0.02em;
+}
+
+/* ─── Cards ───────────────────────────────────────────────────────────── */
+.card-row { display: flex; gap: 20px; flex-wrap: wrap; }
+
+.mock-project-card {
+  width: 280px; border: 1px solid var(--border); border-radius: 2px;
+  overflow: hidden; background: var(--card);
+}
+.mock-project-thumb {
+  height: 100px; background: var(--accent); display: flex;
+  align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 600; color: var(--muted-fg);
+  background-image: repeating-linear-gradient(45deg, transparent, transparent 8px, oklch(0.870 0.006 80 / 30%) 8px, oklch(0.870 0.006 80 / 30%) 9px);
+}
+.mock-project-body { padding: 12px; }
+.mock-project-name { font-size: 14px; font-weight: 500; margin-bottom: 6px; }
+.mock-project-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted-fg); }
+.mock-project-avatars { display: flex; }
+.mock-project-avatar {
+  width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--card);
+  background: var(--accent); margin-left: -6px; display: flex;
+  align-items: center; justify-content: center; font-size: 8px;
+  font-weight: 600; color: var(--muted-fg);
+}
+.mock-project-avatar:first-child { margin-left: 0; }
+
+.mock-library-card {
+  width: 180px; border: 1px solid var(--border); border-radius: 2px;
+  overflow: hidden; background: var(--card);
+}
+.mock-library-thumb {
+  aspect-ratio: 1; background: var(--accent); display: flex;
+  align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 600; color: var(--muted-fg);
+  background-image: repeating-linear-gradient(45deg, transparent, transparent 6px, oklch(0.870 0.006 80 / 30%) 6px, oklch(0.870 0.006 80 / 30%) 7px);
+}
+.mock-library-body { padding: 10px; }
+.mock-library-cat {
+  font-size: 9px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: 0.09em; color: var(--muted-fg); margin-bottom: 4px;
+}
+.mock-library-name { font-size: 13px; font-weight: 500; line-height: 1.3; }
+.mock-library-mfr { font-size: 11px; color: var(--muted-fg); margin-top: 2px; }
+
+/* ─── Table ───────────────────────────────────────────────────────────── */
+.mock-table {
+  width: 100%; border-collapse: collapse; border: 1px solid var(--border);
+  font-size: 12px;
+}
+.mock-table th {
+  text-align: left; padding: 6px 8px; background: var(--accent);
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--muted-fg); border-bottom: 1px solid var(--border);
+}
+.mock-table td {
+  padding: 6px 8px; border-bottom: 1px solid oklch(0.870 0.006 80 / 40%);
+  height: 36px; vertical-align: middle;
+}
+.mock-table tr.selected td { background: oklch(0.944 0.006 80 / 20%); }
+.mock-table tr.editing td { background: oklch(0.93 0.01 220 / 30%); }
+.mock-table tr.editing td.active-cell {
+  background: oklch(0.95 0.02 220); outline: 2px solid oklch(0.6 0.15 250);
+}
+.mock-table .cell-mono { font-family: var(--font-mono); font-size: 11px; }
+.mock-table .cell-muted { background: oklch(0.953 0.005 80 / 20%); color: var(--muted-fg); }
+
+.mock-context-menu {
+  width: 140px; background: white; border-radius: 2px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); outline: 1px solid oklch(0.15 0.010 250 / 10%);
+  padding: 4px; overflow: hidden;
+}
+.mock-context-item {
+  padding: 6px 8px; font-size: 12px; border-radius: 2px; cursor: default;
+}
+.mock-context-item:hover { background: var(--accent); }
+.mock-context-item.red { color: var(--destructive); }
+.mock-context-item.red:hover { background: oklch(0.53 0.200 25 / 10%); }
+
+/* ─── Motion ──────────────────────────────────────────────────────────── */
+.motion-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.motion-table th {
+  text-align: left; padding: 8px 12px; background: var(--accent);
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--muted-fg); border-bottom: 1px solid var(--border);
+}
+.motion-table td {
+  padding: 8px 12px; border-bottom: 1px solid oklch(0.870 0.006 80 / 40%);
+}
+.motion-table .mono { font-family: var(--font-mono); font-size: 12px; }
+
+/* ─── Separator ───────────────────────────────────────────────────────── */
+.mock-sep-h { height: 1px; background: var(--border); width: 100%; }
+.mock-sep-v { width: 1px; background: var(--border); align-self: stretch; }
+
+/* ─── View Switcher ───────────────────────────────────────────────────── */
+.mock-view-switcher {
+  display: inline-flex; padding: 2px; background: oklch(0.944 0.006 80 / 40%);
+  border-radius: 6px; border: 1px solid oklch(0.870 0.006 80 / 50%); gap: 2px;
+}
+.mock-view-btn {
+  padding: 4px 8px; border-radius: 4px; font-size: 12px;
+  color: var(--muted-fg); cursor: pointer; border: none; background: transparent;
+  display: flex; align-items: center; gap: 4px;
+}
+.mock-view-btn.active {
+  background: white; color: var(--fg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+}
+
+/* ─── Shadows ─────────────────────────────────────────────────────────── */
+.shadow-row { display: flex; gap: 24px; flex-wrap: wrap; }
+.shadow-box {
+  width: 160px; height: 80px; background: white; border-radius: 2px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-family: var(--font-mono); color: var(--muted-fg);
+}
+.shadow-none   { border: 1px solid var(--border); }
+.shadow-md     { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+.shadow-lg     { box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="sidebar-title">Paperspace</div>
+  <div class="sidebar-label">Foundation</div>
+  <a href="#colors">Colors</a>
+  <a href="#typography">Typography</a>
+  <a href="#spacing">Spacing & Radius</a>
+  <div class="sidebar-label">Components</div>
+  <a href="#buttons">Buttons</a>
+  <a href="#inputs">Form Inputs</a>
+  <a href="#dropdowns">Dropdowns & Popovers</a>
+  <a href="#dialogs">Dialogs & Sheets</a>
+  <a href="#badges">Badges & Status</a>
+  <a href="#cards">Cards</a>
+  <a href="#table">Table / Schedule</a>
+  <div class="sidebar-label">System</div>
+  <a href="#misc">Separators & Controls</a>
+  <a href="#shadows">Shadows & Elevation</a>
+  <a href="#motion">Motion</a>
+</nav>
+
+<!-- Main Content -->
+<div class="main">
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section id="colors">
+  <h2 class="section-title">Colors</h2>
+  <p class="section-desc">oklch color space. Warm neutrals with a single steel accent.</p>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Brand</h3>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.38 0.090 240)"></div><div class="swatch-info"><div class="swatch-name">Primary</div><div class="swatch-value">oklch(0.38 0.09 240)</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.98 0 0)"></div><div class="swatch-info"><div class="swatch-name">Primary FG</div><div class="swatch-value">oklch(0.98 0 0)</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.53 0.200 25)"></div><div class="swatch-info"><div class="swatch-name">Destructive</div><div class="swatch-value">oklch(0.53 0.20 25)</div></div></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Surfaces</h3>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.985 0.004 80)"></div><div class="swatch-info"><div class="swatch-name">Background</div><div class="swatch-value">oklch(0.985 0.004 80)</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.15 0.010 250)"></div><div class="swatch-info"><div class="swatch-name">Foreground</div><div class="swatch-value">oklch(0.15 0.010 250)</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.997 0.002 80)"></div><div class="swatch-info"><div class="swatch-name">Card</div><div class="swatch-value">oklch(0.997 0.002 80)</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.962 0.006 80)"></div><div class="swatch-info"><div class="swatch-name">Sidebar</div><div class="swatch-value">oklch(0.962 0.006 80)</div></div></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Neutrals</h3>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.958 0.005 80)"></div><div class="swatch-info"><div class="swatch-name">Secondary</div><div class="swatch-value">oklch(0.958 0.005 80)</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.953 0.005 80)"></div><div class="swatch-info"><div class="swatch-name">Muted</div><div class="swatch-value">oklch(0.953 0.005 80)</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.52 0.008 250)"></div><div class="swatch-info"><div class="swatch-name">Muted FG</div><div class="swatch-value">oklch(0.52 0.008 250)</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.944 0.006 80)"></div><div class="swatch-info"><div class="swatch-name">Accent</div><div class="swatch-value">oklch(0.944 0.006 80)</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.870 0.006 80)"></div><div class="swatch-info"><div class="swatch-name">Border</div><div class="swatch-value">oklch(0.870 0.006 80)</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.870 0.006 80)"></div><div class="swatch-info"><div class="swatch-name">Input</div><div class="swatch-value">oklch(0.870 0.006 80)</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.38 0.090 240)"></div><div class="swatch-info"><div class="swatch-name">Ring</div><div class="swatch-value">oklch(0.38 0.090 240)</div></div></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Status Pipeline</h3>
+    <div class="status-row">
+      <div class="status-chip"><span class="status-dot" style="background:#9E9E9E"></span> Draft <span class="swatch-value" style="margin-left:4px">#9E9E9E</span></div>
+      <div class="status-chip"><span class="status-dot" style="background:#F59E0B"></span> In Review <span class="swatch-value" style="margin-left:4px">#F59E0B</span></div>
+      <div class="status-chip"><span class="status-dot" style="background:#6B8F71"></span> Approved <span class="swatch-value" style="margin-left:4px">#6B8F71</span></div>
+      <div class="status-chip"><span class="status-dot" style="background:#C0614A"></span> Rejected <span class="swatch-value" style="margin-left:4px">#C0614A</span></div>
+      <div class="status-chip"><span class="status-dot" style="background:#A78BFA"></span> Quoted <span class="swatch-value" style="margin-left:4px">#A78BFA</span></div>
+      <div class="status-chip"><span class="status-dot" style="background:#4B6DA8"></span> Ordered <span class="swatch-value" style="margin-left:4px">#4B6DA8</span></div>
+      <div class="status-chip"><span class="status-dot" style="background:#6B7DB3"></span> Fabricated <span class="swatch-value" style="margin-left:4px">#6B7DB3</span></div>
+      <div class="status-chip"><span class="status-dot" style="background:#2C9E9E"></span> Shipped <span class="swatch-value" style="margin-left:4px">#2C9E9E</span></div>
+      <div class="status-chip"><span class="status-dot" style="background:#1A7A7A"></span> Delivered <span class="swatch-value" style="margin-left:4px">#1A7A7A</span></div>
+      <div class="status-chip"><span class="status-dot" style="background:#2D6A4F"></span> Installed <span class="swatch-value" style="margin-left:4px">#2D6A4F</span></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Charts</h3>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.809 0.105 251.813)"></div><div class="swatch-info"><div class="swatch-name">Chart 1</div><div class="swatch-value">oklch(0.809 0.105 252)</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.623 0.214 259.815)"></div><div class="swatch-info"><div class="swatch-name">Chart 2</div><div class="swatch-value">oklch(0.623 0.214 260)</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.546 0.245 262.881)"></div><div class="swatch-info"><div class="swatch-name">Chart 3</div><div class="swatch-value">oklch(0.546 0.245 263)</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.488 0.243 264.376)"></div><div class="swatch-info"><div class="swatch-name">Chart 4</div><div class="swatch-value">oklch(0.488 0.243 264)</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:oklch(0.424 0.199 265.638)"></div><div class="swatch-info"><div class="swatch-name">Chart 5</div><div class="swatch-value">oklch(0.424 0.199 266)</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section id="typography">
+  <h2 class="section-title">Typography</h2>
+  <p class="section-desc">Inter for body & display. JetBrains Mono for mark numbers and code.</p>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Font Families</h3>
+    <div class="font-card">
+      <div class="font-card-title">Inter — Sans / Display</div>
+      <div class="font-card-sample" style="font-family:var(--font-sans)">The quick brown fox jumps over the lazy dog</div>
+      <div class="font-card-weights">
+        <span style="font-weight:400">Regular 400</span>
+        <span style="font-weight:500">Medium 500</span>
+        <span style="font-weight:600">Semibold 600</span>
+      </div>
+    </div>
+    <div class="font-card">
+      <div class="font-card-title">JetBrains Mono — Monospace</div>
+      <div class="font-card-sample" style="font-family:var(--font-mono)">PL-001 · $12,450.00 · 2026-03-19</div>
+      <div class="font-card-weights" style="font-family:var(--font-mono)">
+        <span style="font-weight:400">Regular 400</span>
+        <span style="font-weight:500">Medium 500</span>
+        <span style="font-weight:600">Semibold 600</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Size Scale</h3>
+    <div class="type-specimen">
+      <div class="type-row"><span class="type-label">text-[9px]</span><span class="type-sample" style="font-size:9px;text-transform:uppercase;letter-spacing:0.09em;font-weight:500">Category label — plumbing fixtures</span></div>
+      <div class="type-row"><span class="type-label">text-[11px]</span><span class="type-sample" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;font-weight:500;color:var(--muted-fg)">Form Label</span></div>
+      <div class="type-row"><span class="type-label">text-xs (12px)</span><span class="type-sample" style="font-size:12px">Table cell content, metadata, timestamps</span></div>
+      <div class="type-row"><span class="type-label">text-[13px]</span><span class="type-sample" style="font-size:13px;font-weight:500">Default button text</span></div>
+      <div class="type-row"><span class="type-label">text-sm (14px)</span><span class="type-sample" style="font-size:14px">Body text, form inputs, dropdown items</span></div>
+      <div class="type-row"><span class="type-label">text-base (16px)</span><span class="type-sample" style="font-size:16px">Large body text</span></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Special Patterns</h3>
+    <div style="display:flex;gap:32px;flex-wrap:wrap">
+      <div>
+        <div class="input-group-label" style="margin-bottom:8px">Mark Number</div>
+        <span style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.02em">PL-001</span>
+      </div>
+      <div>
+        <div class="input-group-label" style="margin-bottom:8px">Uppercase Label</div>
+        <span style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;font-weight:500;color:var(--muted-fg)">Section Heading</span>
+      </div>
+      <div>
+        <div class="input-group-label" style="margin-bottom:8px">Price (Tabular Nums)</div>
+        <span style="font-family:var(--font-mono);font-size:11px;font-variant-numeric:tabular-nums">$12,450.00</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section id="spacing">
+  <h2 class="section-title">Spacing & Radius</h2>
+  <p class="section-desc">Common spacing values and the border-radius scale.</p>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Spacing Scale</h3>
+    <div class="spacing-row"><span class="spacing-label">2px (0.5)</span><div class="spacing-bar" style="width:2px"></div></div>
+    <div class="spacing-row"><span class="spacing-label">4px (1)</span><div class="spacing-bar" style="width:4px"></div></div>
+    <div class="spacing-row"><span class="spacing-label">6px (1.5)</span><div class="spacing-bar" style="width:6px"></div></div>
+    <div class="spacing-row"><span class="spacing-label">8px (2)</span><div class="spacing-bar" style="width:8px"></div></div>
+    <div class="spacing-row"><span class="spacing-label">10px (2.5)</span><div class="spacing-bar" style="width:10px"></div></div>
+    <div class="spacing-row"><span class="spacing-label">12px (3)</span><div class="spacing-bar" style="width:12px"></div></div>
+    <div class="spacing-row"><span class="spacing-label">16px (4)</span><div class="spacing-bar" style="width:16px"></div></div>
+    <div class="spacing-row"><span class="spacing-label">24px (6)</span><div class="spacing-bar" style="width:24px"></div></div>
+    <div class="spacing-row"><span class="spacing-label">32px (8)</span><div class="spacing-bar" style="width:32px"></div></div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Border Radius (base: 0.25rem = 4px)</h3>
+    <div class="radius-row">
+      <div style="text-align:center"><div class="radius-box" style="border-radius:2.4px">sm</div><div class="variant-label">2.4px</div></div>
+      <div style="text-align:center"><div class="radius-box" style="border-radius:3.2px">md</div><div class="variant-label">3.2px</div></div>
+      <div style="text-align:center"><div class="radius-box" style="border-radius:4px">lg</div><div class="variant-label">4px</div></div>
+      <div style="text-align:center"><div class="radius-box" style="border-radius:5.6px">xl</div><div class="variant-label">5.6px</div></div>
+      <div style="text-align:center"><div class="radius-box" style="border-radius:7.2px">2xl</div><div class="variant-label">7.2px</div></div>
+      <div style="text-align:center"><div class="radius-box" style="border-radius:8.8px">3xl</div><div class="variant-label">8.8px</div></div>
+      <div style="text-align:center"><div class="radius-box" style="border-radius:10.4px">4xl</div><div class="variant-label">10.4px</div></div>
+    </div>
+    <p style="font-size:12px;color:var(--muted-fg);margin-top:12px">Most components use <code style="font-family:var(--font-mono);font-size:11px">rounded-sm</code> (2.4px). Dialog uses <code style="font-family:var(--font-mono);font-size:11px">rounded-xl</code> (5.6px) as a deliberate exception.</p>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section id="buttons">
+  <h2 class="section-title">Buttons</h2>
+  <p class="section-desc">7 variants, 8 sizes. 150ms transition. Disabled at 40% opacity.</p>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Variants</h3>
+    <div class="btn-row">
+      <div style="text-align:center"><button class="btn btn-default">Default</button><div class="variant-label">default</div></div>
+      <div style="text-align:center"><button class="btn btn-outline">Outline</button><div class="variant-label">outline</div></div>
+      <div style="text-align:center"><button class="btn btn-secondary">Secondary</button><div class="variant-label">secondary</div></div>
+      <div style="text-align:center"><button class="btn btn-ghost">Ghost</button><div class="variant-label">ghost</div></div>
+      <div style="text-align:center"><button class="btn btn-text">Text</button><div class="variant-label">text</div></div>
+      <div style="text-align:center"><button class="btn btn-destructive">Destructive</button><div class="variant-label">destructive</div></div>
+      <div style="text-align:center"><button class="btn btn-link">Link</button><div class="variant-label">link</div></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Sizes</h3>
+    <div class="btn-row">
+      <div style="text-align:center"><button class="btn btn-default btn-size-xs">Extra Small</button><div class="variant-label">xs · h-6</div></div>
+      <div style="text-align:center"><button class="btn btn-default btn-size-sm">Small</button><div class="variant-label">sm · h-7</div></div>
+      <div style="text-align:center"><button class="btn btn-default">Default</button><div class="variant-label">default · h-8</div></div>
+      <div style="text-align:center"><button class="btn btn-default btn-size-lg">Large</button><div class="variant-label">lg · h-9</div></div>
+    </div>
+    <div class="btn-row" style="margin-top:8px">
+      <div style="text-align:center"><button class="btn btn-outline btn-icon-xs"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2v8M2 6h8"/></svg></button><div class="variant-label">icon-xs</div></div>
+      <div style="text-align:center"><button class="btn btn-outline btn-icon-sm"><svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2v8M2 6h8"/></svg></button><div class="variant-label">icon-sm</div></div>
+      <div style="text-align:center"><button class="btn btn-outline btn-icon"><svg width="16" height="16" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2v8M2 6h8"/></svg></button><div class="variant-label">icon</div></div>
+      <div style="text-align:center"><button class="btn btn-outline btn-icon-lg"><svg width="18" height="18" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2v8M2 6h8"/></svg></button><div class="variant-label">icon-lg</div></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">States</h3>
+    <div class="btn-row">
+      <div style="text-align:center"><button class="btn btn-default">Enabled</button><div class="variant-label">default</div></div>
+      <div style="text-align:center"><button class="btn btn-default btn-disabled">Disabled</button><div class="variant-label">opacity: 0.4</div></div>
+      <div style="text-align:center"><button class="btn btn-outline">Enabled</button><div class="variant-label">outline</div></div>
+      <div style="text-align:center"><button class="btn btn-outline btn-disabled">Disabled</button><div class="variant-label">opacity: 0.4</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section id="inputs">
+  <h2 class="section-title">Form Inputs</h2>
+  <p class="section-desc">h-8 default height. Focus ring at 25% opacity. Disabled at 40% opacity.</p>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Text Input</h3>
+    <div class="input-row">
+      <div class="input-group"><div class="input-group-label">Default</div><input class="mock-input" placeholder="Placeholder text"></div>
+      <div class="input-group"><div class="input-group-label">Focused</div><input class="mock-input" value="Entered value" style="border-color:var(--ring);box-shadow:0 0 0 2px oklch(0.38 0.090 240 / 25%)"></div>
+      <div class="input-group"><div class="input-group-label">Disabled</div><input class="mock-input disabled" value="Disabled" disabled></div>
+      <div class="input-group"><div class="input-group-label">Error</div><input class="mock-input error" value="Invalid"></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Select Trigger</h3>
+    <div class="input-row">
+      <div class="input-group"><div class="input-group-label">Default</div><div class="mock-select-trigger">Select option… <span class="chevron">&#9662;</span></div></div>
+      <div class="input-group"><div class="input-group-label">With value</div><div class="mock-select-trigger">Residential <span class="chevron">&#9662;</span></div></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Checkbox</h3>
+    <div class="input-row" style="align-items:center">
+      <div class="input-group"><div class="input-group-label">Unchecked</div><div class="mock-checkbox"></div></div>
+      <div class="input-group"><div class="input-group-label">Checked</div><div class="mock-checkbox checked"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 6l2.5 2.5 4.5-5"/></svg></div></div>
+      <div class="input-group"><div class="input-group-label">Disabled</div><div class="mock-checkbox" style="opacity:0.4"></div></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Textarea</h3>
+    <textarea class="mock-textarea" placeholder="Enter notes…"></textarea>
+    <p style="font-size:11px;color:var(--muted-fg);margin-top:4px">min-height: 64px · rounded-lg (4px) · resizable</p>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Label</h3>
+    <div class="mock-label">Description</div>
+    <p style="font-size:11px;color:var(--muted-fg);margin-top:4px">11px · uppercase · tracking: 0.06em · font-weight: 500 · muted-foreground</p>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section id="dropdowns">
+  <h2 class="section-title">Dropdowns & Popovers</h2>
+  <p class="section-desc">bg-white, rounded-sm, shadow-md. Dropdown ring: 5% opacity. Select ring: 10%.</p>
+
+  <div class="subsection" style="display:flex;gap:32px;flex-wrap:wrap;align-items:start">
+    <div>
+      <h3 class="subsection-title">Dropdown Menu</h3>
+      <div class="mock-dropdown">
+        <div class="mock-dropdown-item">Edit <span class="mock-dropdown-shortcut">&#8984;E</span></div>
+        <div class="mock-dropdown-item hovered">Duplicate <span class="mock-dropdown-shortcut">&#8984;D</span></div>
+        <div class="mock-dropdown-sep"></div>
+        <div class="mock-dropdown-item destructive">Delete <span class="mock-dropdown-shortcut">&#8984;&#9003;</span></div>
+      </div>
+      <p style="font-size:10px;color:var(--muted-fg);margin-top:6px;font-family:var(--font-mono)">ring-1 ring-foreground/5</p>
+    </div>
+
+    <div>
+      <h3 class="subsection-title">Select Popup</h3>
+      <div class="mock-dropdown ring-10" style="width:180px">
+        <div class="mock-dropdown-item" style="font-size:12px"><span class="status-dot" style="background:#9E9E9E;width:8px;height:8px"></span> Draft</div>
+        <div class="mock-dropdown-item hovered" style="font-size:12px"><span class="status-dot" style="background:#F59E0B;width:8px;height:8px"></span> In Review</div>
+        <div class="mock-dropdown-item" style="font-size:12px"><span class="status-dot" style="background:#6B8F71;width:8px;height:8px"></span> Approved <span style="margin-left:auto;font-size:12px">&#10003;</span></div>
+        <div class="mock-dropdown-item" style="font-size:12px"><span class="status-dot" style="background:#C0614A;width:8px;height:8px"></span> Rejected</div>
+      </div>
+      <p style="font-size:10px;color:var(--muted-fg);margin-top:6px;font-family:var(--font-mono)">ring-1 ring-foreground/10</p>
+    </div>
+
+    <div>
+      <h3 class="subsection-title">Popover</h3>
+      <div class="mock-popover">
+        <div class="mock-popover-title">Schedule Settings</div>
+        <div class="mock-popover-desc">Configure columns, filters, and display options for this schedule.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="subsection" style="margin-top:24px">
+    <h3 class="subsection-title">Tooltip</h3>
+    <div style="display:flex;gap:32px;flex-wrap:wrap;padding:24px 0">
+      <div class="mock-tooltip top">Tooltip text<div style="position:absolute;bottom:-4px;left:50%;margin-left:-4px;width:8px;height:8px;background:var(--fg);transform:rotate(45deg)"></div></div>
+    </div>
+    <p style="font-size:11px;color:var(--muted-fg)">Dark background (foreground color), light text, rounded-sm, 12px font, px-3 py-1.5</p>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section id="dialogs">
+  <h2 class="section-title">Dialogs & Sheets</h2>
+  <p class="section-desc">Overlay: bg-black/10 with backdrop-blur. Dialog: rounded-xl. Sheet: slides from right.</p>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Dialog</h3>
+    <div class="mock-overlay">
+      <div class="mock-dialog">
+        <button class="mock-dialog-close">&times;</button>
+        <div class="mock-dialog-title">Confirm Delete</div>
+        <div class="mock-dialog-desc">Are you sure you want to delete this item? This action cannot be undone.</div>
+        <div class="mock-dialog-footer">
+          <button class="btn btn-outline" style="font-size:13px">Cancel</button>
+          <button class="btn btn-destructive" style="font-size:13px">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Sheet (Right)</h3>
+    <div class="mock-sheet-container">
+      <div class="mock-sheet-backdrop"></div>
+      <div class="mock-sheet">
+        <div class="mock-sheet-title">Row Details</div>
+        <div class="mock-sheet-desc">PL-001 · Kohler Artifacts Faucet</div>
+        <div class="mock-sheet-body" style="font-size:12px;color:var(--muted-fg)">
+          <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>Status</span><span style="color:var(--fg)">Approved</span></div>
+          <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>Manufacturer</span><span style="color:var(--fg)">Kohler</span></div>
+          <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>Unit Price</span><span style="color:var(--fg);font-family:var(--font-mono);font-size:11px">$1,245.00</span></div>
+        </div>
+        <div class="mock-sheet-footer">
+          <button class="btn btn-outline" style="font-size:12px">Close</button>
+          <button class="btn btn-default" style="font-size:12px">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section id="badges">
+  <h2 class="section-title">Badges & Status</h2>
+  <p class="section-desc">Pill badges (rounded-4xl) and status-specific badges (rounded-sm).</p>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Badge Variants</h3>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <div style="text-align:center"><span class="mock-badge default">Default</span><div class="variant-label">default</div></div>
+      <div style="text-align:center"><span class="mock-badge secondary">Secondary</span><div class="variant-label">secondary</div></div>
+      <div style="text-align:center"><span class="mock-badge destructive">Destructive</span><div class="variant-label">destructive</div></div>
+      <div style="text-align:center"><span class="mock-badge outline">Outline</span><div class="variant-label">outline</div></div>
+      <div style="text-align:center"><span class="mock-badge ghost">Ghost</span><div class="variant-label">ghost</div></div>
+      <div style="text-align:center"><span class="mock-badge link">Link</span><div class="variant-label">link</div></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Status Badges — Dot Only (8px)</h3>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+      <div style="text-align:center"><span class="status-dot" style="background:#9E9E9E;display:inline-block" title="Draft"></span><div class="variant-label">Draft</div></div>
+      <div style="text-align:center"><span class="status-dot" style="background:#F59E0B;display:inline-block" title="In Review"></span><div class="variant-label">In Review</div></div>
+      <div style="text-align:center"><span class="status-dot" style="background:#6B8F71;display:inline-block" title="Approved"></span><div class="variant-label">Approved</div></div>
+      <div style="text-align:center"><span class="status-dot" style="background:#C0614A;display:inline-block" title="Rejected"></span><div class="variant-label">Rejected</div></div>
+      <div style="text-align:center"><span class="status-dot" style="background:#A78BFA;display:inline-block" title="Quoted"></span><div class="variant-label">Quoted</div></div>
+      <div style="text-align:center"><span class="status-dot" style="background:#4B6DA8;display:inline-block" title="Ordered"></span><div class="variant-label">Ordered</div></div>
+      <div style="text-align:center"><span class="status-dot" style="background:#6B7DB3;display:inline-block" title="Fabricated"></span><div class="variant-label">Fabricated</div></div>
+      <div style="text-align:center"><span class="status-dot" style="background:#2C9E9E;display:inline-block" title="Shipped"></span><div class="variant-label">Shipped</div></div>
+      <div style="text-align:center"><span class="status-dot" style="background:#1A7A7A;display:inline-block" title="Delivered"></span><div class="variant-label">Delivered</div></div>
+      <div style="text-align:center"><span class="status-dot" style="background:#2D6A4F;display:inline-block" title="Installed"></span><div class="variant-label">Installed</div></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Status Badges — Full (6px dot + label)</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span class="status-badge-full" style="background:#9E9E9E14;border-color:#9E9E9E40;color:#9E9E9E"><span class="status-dot" style="background:#9E9E9E;width:6px;height:6px"></span>Draft</span>
+      <span class="status-badge-full" style="background:#F59E0B14;border-color:#F59E0B40;color:#F59E0B"><span class="status-dot" style="background:#F59E0B;width:6px;height:6px"></span>In Review</span>
+      <span class="status-badge-full" style="background:#6B8F7114;border-color:#6B8F7140;color:#6B8F71"><span class="status-dot" style="background:#6B8F71;width:6px;height:6px"></span>Approved</span>
+      <span class="status-badge-full" style="background:#C0614A14;border-color:#C0614A40;color:#C0614A"><span class="status-dot" style="background:#C0614A;width:6px;height:6px"></span>Rejected</span>
+      <span class="status-badge-full" style="background:#A78BFA14;border-color:#A78BFA40;color:#A78BFA"><span class="status-dot" style="background:#A78BFA;width:6px;height:6px"></span>Quoted</span>
+      <span class="status-badge-full" style="background:#4B6DA814;border-color:#4B6DA840;color:#4B6DA8"><span class="status-dot" style="background:#4B6DA8;width:6px;height:6px"></span>Ordered</span>
+      <span class="status-badge-full" style="background:#6B7DB314;border-color:#6B7DB340;color:#6B7DB3"><span class="status-dot" style="background:#6B7DB3;width:6px;height:6px"></span>Fabricated</span>
+      <span class="status-badge-full" style="background:#2C9E9E14;border-color:#2C9E9E40;color:#2C9E9E"><span class="status-dot" style="background:#2C9E9E;width:6px;height:6px"></span>Shipped</span>
+      <span class="status-badge-full" style="background:#1A7A7A14;border-color:#1A7A7A40;color:#1A7A7A"><span class="status-dot" style="background:#1A7A7A;width:6px;height:6px"></span>Delivered</span>
+      <span class="status-badge-full" style="background:#2D6A4F14;border-color:#2D6A4F40;color:#2D6A4F"><span class="status-dot" style="background:#2D6A4F;width:6px;height:6px"></span>Installed</span>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section id="cards">
+  <h2 class="section-title">Cards</h2>
+  <p class="section-desc">Project cards and library item cards. Grid pattern placeholder for images.</p>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Project Card</h3>
+    <div class="card-row">
+      <div class="mock-project-card">
+        <div class="mock-project-thumb">WR</div>
+        <div class="mock-project-body">
+          <div class="mock-project-name">Willow Residence</div>
+          <div class="mock-project-meta">
+            <span style="display:flex;align-items:center;gap:4px"><span class="status-dot" style="background:#6B8F71;width:6px;height:6px"></span> Active</span>
+            <span style="margin-left:auto">2 days ago</span>
+            <div class="mock-project-avatars">
+              <div class="mock-project-avatar">JF</div>
+              <div class="mock-project-avatar">AK</div>
+              <div class="mock-project-avatar">+3</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mock-project-card">
+        <div class="mock-project-thumb">MP</div>
+        <div class="mock-project-body">
+          <div class="mock-project-name">Marina Plaza Hotel</div>
+          <div class="mock-project-meta">
+            <span style="display:flex;align-items:center;gap:4px"><span class="status-dot" style="background:#9E9E9E;width:6px;height:6px"></span> Draft</span>
+            <span style="margin-left:auto">5 days ago</span>
+            <div class="mock-project-avatars">
+              <div class="mock-project-avatar">JF</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Library Item Card</h3>
+    <div class="card-row">
+      <div class="mock-library-card">
+        <div class="mock-library-thumb">KA</div>
+        <div class="mock-library-body">
+          <div class="mock-library-cat">Plumbing</div>
+          <div class="mock-library-name">Kohler Artifacts Faucet</div>
+          <div class="mock-library-mfr">Kohler</div>
+        </div>
+      </div>
+      <div class="mock-library-card">
+        <div class="mock-library-thumb">RH</div>
+        <div class="mock-library-body">
+          <div class="mock-library-cat">Light Fixtures</div>
+          <div class="mock-library-name">Restoration Hardware Cloud Pendant</div>
+          <div class="mock-library-mfr">RH</div>
+        </div>
+      </div>
+      <div class="mock-library-card">
+        <div class="mock-library-thumb">WA</div>
+        <div class="mock-library-body">
+          <div class="mock-library-cat">Materials</div>
+          <div class="mock-library-name">Walker Zanger Calacatta Gold</div>
+          <div class="mock-library-mfr">Walker Zanger</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section id="table">
+  <h2 class="section-title">Table / Schedule</h2>
+  <p class="section-desc">36px row height. Row states: default, selected, editing. Inline cell editor.</p>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Row States</h3>
+    <table class="mock-table">
+      <thead>
+        <tr>
+          <th style="width:32px">&#9744;</th>
+          <th style="width:72px">Mark</th>
+          <th style="width:110px">Status</th>
+          <th>Description</th>
+          <th style="width:120px">Manufacturer</th>
+          <th style="width:90px">Unit Price</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>&#9744;</td>
+          <td class="cell-mono">PL-001</td>
+          <td><span style="display:flex;align-items:center;gap:6px"><span class="status-dot" style="background:#6B8F71;width:8px;height:8px"></span> Approved</span></td>
+          <td>Kohler Artifacts Faucet</td>
+          <td>Kohler</td>
+          <td class="cell-mono" style="font-variant-numeric:tabular-nums">$1,245.00</td>
+        </tr>
+        <tr class="selected">
+          <td>&#9745;</td>
+          <td class="cell-mono">PL-002</td>
+          <td><span style="display:flex;align-items:center;gap:6px"><span class="status-dot" style="background:#F59E0B;width:8px;height:8px"></span> In Review</span></td>
+          <td>Grohe Eurosmart Basin Mixer</td>
+          <td>Grohe</td>
+          <td class="cell-mono" style="font-variant-numeric:tabular-nums">$890.00</td>
+        </tr>
+        <tr class="editing">
+          <td>&#9744;</td>
+          <td class="cell-mono">PL-003</td>
+          <td class="active-cell"><span style="display:flex;align-items:center;gap:6px"><span class="status-dot" style="background:#9E9E9E;width:8px;height:8px"></span> Draft</span></td>
+          <td>Delta Trinsic Pull-Down</td>
+          <td>Delta</td>
+          <td class="cell-mono" style="font-variant-numeric:tabular-nums">$675.00</td>
+        </tr>
+        <tr>
+          <td>&#9744;</td>
+          <td class="cell-mono">PL-004</td>
+          <td><span style="display:flex;align-items:center;gap:6px"><span class="status-dot" style="background:#4B6DA8;width:8px;height:8px"></span> Ordered</span></td>
+          <td>Toto Ultramax II Toilet</td>
+          <td>Toto</td>
+          <td class="cell-mono cell-muted" style="font-variant-numeric:tabular-nums">$520.00</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--muted-fg)">
+      <span>Default row</span>
+      <span style="color:var(--fg);background:oklch(0.944 0.006 80 / 20%);padding:0 6px;border-radius:2px">Selected (bg-accent/20)</span>
+      <span style="color:var(--fg);background:oklch(0.93 0.01 220 / 30%);padding:0 6px;border-radius:2px">Editing (bg-blue-50)</span>
+      <span style="background:oklch(0.953 0.005 80 / 20%);padding:0 6px;border-radius:2px">Computed (muted bg)</span>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Context Menu</h3>
+    <div class="mock-context-menu">
+      <div class="mock-context-item">Fill down</div>
+      <div class="mock-context-item red">Delete row</div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section id="misc">
+  <h2 class="section-title">Separators & Controls</h2>
+  <p class="section-desc">Dividers, view switcher, and utility components.</p>
+
+  <div class="subsection">
+    <h3 class="subsection-title">Separator</h3>
+    <div style="display:flex;gap:24px;align-items:center">
+      <div style="flex:1">
+        <div class="input-group-label" style="margin-bottom:8px">Horizontal</div>
+        <div class="mock-sep-h"></div>
+        <p style="font-size:10px;font-family:var(--font-mono);color:var(--muted-fg);margin-top:4px">h-px w-full bg-border</p>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+        <div class="input-group-label">Vertical</div>
+        <div style="display:flex;height:48px;gap:16px;align-items:center">
+          <span style="font-size:12px">Left</span>
+          <div class="mock-sep-v" style="height:100%"></div>
+          <span style="font-size:12px">Right</span>
+        </div>
+        <p style="font-size:10px;font-family:var(--font-mono);color:var(--muted-fg)">w-px self-stretch bg-border</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3 class="subsection-title">View Switcher</h3>
+    <div class="mock-view-switcher">
+      <button class="mock-view-btn active">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+        Grid
+      </button>
+      <button class="mock-view-btn">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+        Table
+      </button>
+    </div>
+    <p style="font-size:10px;font-family:var(--font-mono);color:var(--muted-fg);margin-top:8px">bg-accent/40 container, bg-background + shadow-sm for active</p>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section id="shadows">
+  <h2 class="section-title">Shadows & Elevation</h2>
+  <p class="section-desc">Border-only elevation for most surfaces. Shadows reserved for floating elements only.</p>
+
+  <div class="shadow-row">
+    <div style="text-align:center">
+      <div class="shadow-box shadow-none">border only</div>
+      <div class="variant-label">Cards, panels, containers</div>
+    </div>
+    <div style="text-align:center">
+      <div class="shadow-box shadow-md">shadow-md</div>
+      <div class="variant-label">Dropdowns, selects, popovers, toasts</div>
+    </div>
+    <div style="text-align:center">
+      <div class="shadow-box shadow-lg">shadow-lg</div>
+      <div class="variant-label">Sheets</div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section id="motion">
+  <h2 class="section-title">Motion</h2>
+  <p class="section-desc">200ms max for workspace interactions. No bouncy easing. Ever.</p>
+
+  <table class="motion-table">
+    <thead>
+      <tr>
+        <th>Pattern</th>
+        <th>Duration</th>
+        <th>Easing</th>
+        <th>Usage</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Color transitions</td><td class="mono">150ms</td><td class="mono">ease</td><td>Buttons, inputs, hover states</td></tr>
+      <tr><td>Modal enter/exit</td><td class="mono">100ms</td><td class="mono">ease-out</td><td>Dialog, sheet, dropdown open/close</td></tr>
+      <tr><td>Fade in</td><td class="mono">100ms</td><td class="mono">ease-out</td><td>Popups, tooltips</td></tr>
+      <tr><td>Zoom in</td><td class="mono">95% &rarr; 100%</td><td class="mono">ease-out</td><td>Dropdowns, selects</td></tr>
+      <tr><td>Slide in</td><td class="mono">4&ndash;8px offset</td><td class="mono">ease-out</td><td>Directional popups</td></tr>
+      <tr><td>Expand down</td><td class="mono">300ms</td><td class="mono">ease-out</td><td>Accordion/collapse (sole exception to 200ms rule)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</div><!-- .main -->
+
+<!-- Sidebar scroll spy -->
+<script>
+(function() {
+  const links = document.querySelectorAll('.sidebar a[href^="#"]');
+  const sections = Array.from(links).map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+
+  function update() {
+    let current = sections[0];
+    for (const s of sections) {
+      if (s.getBoundingClientRect().top <= 80) current = s;
+    }
+    links.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current.id);
+    });
+  }
+
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+})();
+</script>
+</body>
+</html>
