@@ -7,7 +7,7 @@ import secrets
 import signal
 import time
 from collections import deque
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from starlette.applications import Starlette
@@ -39,6 +39,7 @@ HERMES_HOME = os.environ.get("HERMES_HOME", str(Path.home() / ".hermes"))
 ENV_FILE_PATH = Path(HERMES_HOME) / ".env"
 PAIRING_DIR = Path(HERMES_HOME) / "pairing"
 CODE_TTL_SECONDS = 3600
+PID1_REAPER_INTERVAL_SECONDS = 5
 
 # Registry of known Hermes env vars exposed in the UI.
 # Each entry: (key, label, category, is_password)
@@ -207,6 +208,74 @@ def require_auth(request: Request):
             headers={"WWW-Authenticate": 'Basic realm="hermes"'},
         )
     return None
+
+
+def _read_proc_status(pid: int) -> dict[str, str]:
+    status_path = Path("/proc") / str(pid) / "status"
+    result: dict[str, str] = {}
+    for line in status_path.read_text(errors="replace").splitlines():
+        if ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        result[key] = value.strip()
+    return result
+
+
+def _tracked_child_pids() -> set[int]:
+    tracked: set[int] = set()
+    try:
+        process = gateway.process
+    except NameError:
+        process = None
+    if process and process.returncode is None and process.pid:
+        tracked.add(process.pid)
+    return tracked
+
+
+def reap_zombie_children_once() -> int:
+    """Reap orphaned zombie children when this process is container PID 1.
+
+    The server intentionally starts the Hermes gateway via asyncio.subprocess,
+    so avoid a blunt waitpid(-1) loop that could steal the gateway's exit
+    status from asyncio. Instead, scan /proc for zombies directly parented by
+    this process and skip tracked child PIDs.
+    """
+    if os.getpid() != 1:
+        return 0
+
+    tracked = _tracked_child_pids()
+    reaped = 0
+    for proc_dir in Path("/proc").iterdir():
+        if not proc_dir.name.isdigit():
+            continue
+        pid = int(proc_dir.name)
+        if pid in tracked:
+            continue
+        try:
+            status = _read_proc_status(pid)
+            if int(status.get("PPid", "0") or 0) != 1:
+                continue
+            if not status.get("State", "").startswith("Z"):
+                continue
+            waited_pid, _ = os.waitpid(pid, os.WNOHANG)
+            if waited_pid:
+                reaped += 1
+        except (ChildProcessError, FileNotFoundError, ProcessLookupError, ValueError):
+            continue
+        except OSError as exc:
+            print(f"[pid1-reaper] failed to reap pid {pid}: {exc}", flush=True)
+    return reaped
+
+
+async def pid1_reaper_loop():
+    if os.getpid() != 1:
+        return
+    print("[pid1-reaper] enabled", flush=True)
+    while True:
+        reaped = reap_zombie_children_once()
+        if reaped:
+            print(f"[pid1-reaper] reaped {reaped} zombie child process(es)", flush=True)
+        await asyncio.sleep(PID1_REAPER_INTERVAL_SECONDS)
 
 
 class GatewayManager:
@@ -577,9 +646,16 @@ routes = [
 
 @asynccontextmanager
 async def lifespan(app):
+    reaper_task = asyncio.create_task(pid1_reaper_loop())
     await auto_start_gateway()
-    yield
-    await gateway.stop()
+    try:
+        yield
+    finally:
+        reaper_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await reaper_task
+        await gateway.stop()
+        reap_zombie_children_once()
 
 
 app = Starlette(
