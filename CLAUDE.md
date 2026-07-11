@@ -14,4 +14,5 @@ Python/Starlette web server that wraps Hermes Agent's gateway as a managed subpr
 - Gateway lifecycle: start/stop/restart via async subprocess, stdout captured to ring buffer
 - Secret masking: password fields show first 8 chars + `***`, merge on save preserves masked values
 - No direct Hermes Python imports — the server manages the .env file independently
-- Auto-start: gateway starts on server boot if any provider API key is configured
+- Auto-start: gateway starts on server boot when a messaging channel is configured, unless `GATEWAY_AUTO_START` explicitly overrides it
+- Production lifecycle: the server supervises `hermes gateway run`, immediately honors Hermes exit 75 restarts, and backs off unexpected crash restarts

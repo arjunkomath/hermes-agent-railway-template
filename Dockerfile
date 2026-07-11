@@ -16,7 +16,8 @@ RUN apt-get update && \
 
 RUN node --version && npm --version
 
-RUN git clone --depth 1 https://github.com/NousResearch/hermes-agent.git /tmp/hermes-agent && \
+ARG HERMES_REF=v2026.7.7.2
+RUN git clone --depth 1 --branch "$HERMES_REF" https://github.com/NousResearch/hermes-agent.git /tmp/hermes-agent && \
     cd /tmp/hermes-agent && \
     uv pip install --system --no-cache -e ".[all]" && \
     rm -rf /tmp/hermes-agent/.git

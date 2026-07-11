@@ -39,6 +39,7 @@ Open `http://localhost:8080` and log in with `admin` / `changeme`.
 | `PORT` | `8080` | Web server port |
 | `ADMIN_USERNAME` | `admin` | Basic auth username |
 | `ADMIN_PASSWORD` | *(generated)* | Basic auth password. If unset, a random password is generated and printed to stdout |
+| `GATEWAY_AUTO_START` | *(auto)* | Set to `true` to always supervise the gateway or `false` to keep it stopped. By default it starts when a messaging channel is configured. |
 
 All Hermes configuration (LLM providers, messaging channels, tool API keys) is managed through the web UI.
 
@@ -53,7 +54,7 @@ Railway Container
 └── hermes gateway — managed as async subprocess
 ```
 
-The web server runs on `$PORT` and manages the Hermes gateway as a child process. Gateway stdout/stderr is captured into a ring buffer and viewable in the dashboard.
+The web server runs on `$PORT` and supervises the native `hermes gateway run` foreground process. Unexpected exits are restarted with bounded exponential backoff, while Hermes's planned restart exit (`75`) is respawned immediately. Gateway stdout/stderr is captured into a ring buffer and viewable in the dashboard.
 
 ## API Endpoints
 
@@ -71,7 +72,7 @@ The web server runs on `$PORT` and manages the Hermes gateway as a child process
 
 ## Supported Providers
 
-OpenRouter, DeepSeek, DashScope, GLM/Z.AI, Kimi, MiniMax, Hugging Face
+OpenRouter, Anthropic, DeepSeek, DashScope, GLM/Z.AI, Kimi, MiniMax, Hugging Face
 
 ## Supported Channels
 

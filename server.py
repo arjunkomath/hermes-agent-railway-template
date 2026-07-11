@@ -7,6 +7,7 @@ import secrets
 import signal
 import time
 from collections import deque
+from collections.abc import Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -53,6 +54,9 @@ ENV_VAR_DEFS = [
     ("KIMI_API_KEY", "Kimi API Key", "provider", True),
     ("MINIMAX_API_KEY", "MiniMax API Key", "provider", True),
     ("HF_TOKEN", "Hugging Face Token", "provider", True),
+    ("ANTHROPIC_API_KEY", "Anthropic API Key", "provider", True),
+    ("ANTHROPIC_TOKEN", "Anthropic OAuth Token", "provider", True),
+    ("CLAUDE_CODE_OAUTH_TOKEN", "Claude Code OAuth Token", "provider", True),
     # Tools
     ("PARALLEL_API_KEY", "Parallel API Key", "tool", True),
     ("FIRECRAWL_API_KEY", "Firecrawl API Key", "tool", True),
@@ -102,6 +106,21 @@ CHANNEL_KEYS = {
     "Mattermost": "MATTERMOST_TOKEN",
     "Matrix": "MATRIX_ACCESS_TOKEN",
 }
+
+FALSE_VALUES = {"0", "false", "no", "off"}
+
+
+def is_enabled(value: str) -> bool:
+    return bool(value.strip()) and value.strip().lower() not in FALSE_VALUES
+
+
+def should_auto_start_gateway(env_vars: dict[str, str]) -> bool:
+    """Start Hermes when explicitly enabled or when a channel is configured."""
+    combined = {**os.environ, **env_vars}
+    override = combined.get("GATEWAY_AUTO_START")
+    if override is not None:
+        return is_enabled(override)
+    return any(is_enabled(combined.get(key, "")) for key in CHANNEL_KEYS.values())
 
 
 def read_env_file(path: Path) -> dict[str, str]:
@@ -210,71 +229,151 @@ def require_auth(request: Request):
 
 
 class GatewayManager:
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        command: Sequence[str] = ("hermes", "gateway", "run"),
+        restart_min_delay: float = 1.0,
+        restart_max_delay: float = 30.0,
+        stable_runtime: float = 60.0,
+        stop_timeout: float = 30.0,
+    ):
+        self.command = tuple(command)
+        self.restart_min_delay = restart_min_delay
+        self.restart_max_delay = restart_max_delay
+        self.stable_runtime = stable_runtime
+        self.stop_timeout = stop_timeout
         self.process: asyncio.subprocess.Process | None = None
         self.state = "stopped"
         self.logs: deque[str] = deque(maxlen=500)
         self.start_time: float | None = None
         self.restart_count = 0
-        self._read_tasks: list[asyncio.Task] = []
+        self.last_exit_code: int | None = None
+        self.last_error: str | None = None
+        self._desired_running = False
+        self._supervisor_task: asyncio.Task | None = None
+        self._lifecycle_lock = asyncio.Lock()
+
+    @property
+    def desired_running(self) -> bool:
+        return self._desired_running
 
     async def start(self):
-        if self.process and self.process.returncode is None:
-            return
-        self.state = "starting"
-        try:
-            env = os.environ.copy()
-            env["HERMES_HOME"] = HERMES_HOME
-            env_vars = read_env_file(ENV_FILE_PATH)
-            env.update(env_vars)
+        async with self._lifecycle_lock:
+            if self._supervisor_task and not self._supervisor_task.done():
+                return
+            self._desired_running = True
+            self.state = "starting"
+            self.last_error = None
+            self._supervisor_task = asyncio.create_task(self._supervise())
 
-            self.process = await asyncio.create_subprocess_exec(
-                "hermes", "gateway",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-                env=env,
-            )
-            self.state = "running"
-            self.start_time = time.time()
-            task = asyncio.create_task(self._read_output())
-            self._read_tasks.append(task)
-        except Exception as e:
-            self.state = "error"
-            self.logs.append(f"Failed to start gateway: {e}")
+    async def _supervise(self):
+        delay = self.restart_min_delay
+        try:
+            while self._desired_running:
+                started_at = time.monotonic()
+                exit_code = None
+                process = None
+                try:
+                    env = os.environ.copy()
+                    env["HERMES_HOME"] = HERMES_HOME
+                    env.update(read_env_file(ENV_FILE_PATH))
+
+                    process = await asyncio.create_subprocess_exec(
+                        *self.command,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.STDOUT,
+                        env=env,
+                    )
+                    self.process = process
+                    self.state = "running"
+                    self.start_time = time.time()
+                    self.last_error = None
+                    await self._read_output(process)
+                    exit_code = await process.wait()
+                except asyncio.CancelledError:
+                    break
+                except Exception as exc:
+                    self.last_error = f"{type(exc).__name__}: {exc}"
+                    self.logs.append(f"Gateway launch failed: {self.last_error}")
+                finally:
+                    if process and process.returncode is not None:
+                        self.process = None
+
+                if not self._desired_running:
+                    self.process = None
+                    break
+
+                runtime = time.monotonic() - started_at
+                self.last_exit_code = exit_code
+                self.restart_count += 1
+                self.state = "restarting"
+
+                if exit_code == 75:
+                    # Hermes uses EX_TEMPFAIL to request a planned respawn.
+                    retry_delay = 0.0
+                else:
+                    if runtime >= self.stable_runtime:
+                        delay = self.restart_min_delay
+                    retry_delay = delay
+                    delay = min(max(delay * 2, self.restart_min_delay), self.restart_max_delay)
+
+                reason = self.last_error or f"exit code {exit_code}"
+                self.logs.append(
+                    f"Gateway stopped ({reason}); restarting in {retry_delay:g}s"
+                )
+                await asyncio.sleep(retry_delay)
+        finally:
+            await self._terminate_process()
+            self.process = None
+            self.start_time = None
+            if not self._desired_running:
+                self.state = "stopped"
+
+    async def _terminate_process(self):
+        process = self.process
+        if not process or process.returncode is not None:
+            return
+        process.terminate()
+        try:
+            await asyncio.wait_for(process.wait(), timeout=self.stop_timeout)
+        except asyncio.TimeoutError:
+            process.kill()
+            await process.wait()
+
+    async def _read_output(self, process: asyncio.subprocess.Process):
+        if not process.stdout:
+            return
+        while True:
+            line = await process.stdout.readline()
+            if not line:
+                return
+            decoded = line.decode("utf-8", errors="replace").rstrip()
+            self.logs.append(ANSI_ESCAPE.sub("", decoded))
 
     async def stop(self):
-        if not self.process or self.process.returncode is not None:
+        async with self._lifecycle_lock:
+            self._desired_running = False
+            task = self._supervisor_task
+            self.state = "stopping"
+            if task and not task.done():
+                task.cancel()
+
+        if task:
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        async with self._lifecycle_lock:
+            if self._supervisor_task is task:
+                self._supervisor_task = None
             self.state = "stopped"
-            return
-        self.state = "stopping"
-        self.process.terminate()
-        try:
-            await asyncio.wait_for(self.process.wait(), timeout=10)
-        except asyncio.TimeoutError:
-            self.process.kill()
-            await self.process.wait()
-        self.state = "stopped"
-        self.start_time = None
 
     async def restart(self):
         await self.stop()
         self.restart_count += 1
         await self.start()
-
-    async def _read_output(self):
-        try:
-            while self.process and self.process.stdout:
-                line = await self.process.stdout.readline()
-                if not line:
-                    break
-                decoded = line.decode("utf-8", errors="replace").rstrip()
-                cleaned = ANSI_ESCAPE.sub("", decoded)
-                self.logs.append(cleaned)
-        except asyncio.CancelledError:
-            return
-        if self.process and self.process.returncode is not None and self.state == "running":
-            self.state = "error"
-            self.logs.append(f"Gateway exited with code {self.process.returncode}")
 
     def get_status(self) -> dict:
         pid = None
@@ -288,6 +387,9 @@ class GatewayManager:
             "pid": pid,
             "uptime": uptime,
             "restart_count": self.restart_count,
+            "desired_running": self.desired_running,
+            "last_exit_code": self.last_exit_code,
+            "last_error": self.last_error,
         }
 
 
@@ -303,7 +405,11 @@ async def homepage(request: Request):
 
 
 async def health(request: Request):
-    return JSONResponse({"status": "ok", "gateway": gateway.state})
+    healthy = not gateway.desired_running or gateway.state == "running"
+    return JSONResponse(
+        {"status": "ok" if healthy else "degraded", "gateway": gateway.get_status()},
+        status_code=200 if healthy else 503,
+    )
 
 
 async def api_config_get(request: Request):
@@ -553,9 +659,8 @@ async def api_pairing_revoke(request: Request):
 
 async def auto_start_gateway():
     env_vars = read_env_file(ENV_FILE_PATH)
-    has_provider = any(env_vars.get(key) for key in PROVIDER_KEYS)
-    if has_provider:
-        asyncio.create_task(gateway.start())
+    if should_auto_start_gateway(env_vars):
+        await gateway.start()
 
 
 routes = [
